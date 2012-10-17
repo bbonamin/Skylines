@@ -5,16 +5,18 @@ from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what.predicates import has_permission
 from tw.forms.fields import SingleSelectField
 from tw.forms.validators import FieldStorageUploadConverter
+from geoalchemy.base import WKTSpatialElement
 from skylines.controllers.base import BaseController
 from skylines.lib import files
 from skylines.model import DBSession, User, AircraftModel, Flight
 from skylines.lib.md5 import file_md5
-from skylines.lib.xcsoar import analyse_flight
+from skylines.lib.xcsoar import analyse_flight, flight_path
 from skylines.lib.form import BootstrapForm, MultiFileField
 from zipfile import ZipFile
 from skylines.model.igcfile import IGCFile
 from skylines.model.notification import create_flight_notifications
 from skylines.lib.string import import_ascii
+from skylines.lib.datetime import from_seconds_of_day
 
 
 class PilotSelectField(SingleSelectField):
@@ -149,10 +151,23 @@ class UploadController(BaseController):
             igc_file.md5 = md5
             igc_file.update_igc_headers()
 
-            if igc_file.date_utc is None:
+            fp = flight_path(igc_file)
+
+            if igc_file.date_utc is None or fp is None or len(fp) == 0:
                 files.delete_file(filename)
                 flights.append((name, None, _('Failed to parse file')))
                 continue
+
+            # Populate timestamps array
+            igc_file.timestamps = [from_seconds_of_day(igc_file.date_utc,
+                                                       fix.seconds_of_day)
+                                   for fix in fp]
+
+            # Convert FlightPath output to PostGIS MULTIPOINT geometry
+            locations = ['{} {}'.format(fix.longitude, fix.latitude)
+                         for fix in fp]
+            wkt = "MULTIPOINT({})".format(','.join(locations))
+            igc_file.locations = WKTSpatialElement(wkt)
 
             flight = Flight()
             flight.pilot_id = pilot_id

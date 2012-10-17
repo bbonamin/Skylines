@@ -6,6 +6,8 @@ from sqlalchemy import ForeignKey, Column, func
 from sqlalchemy.orm import relation
 from sqlalchemy.sql.expression import desc, and_
 from sqlalchemy.types import Integer, DateTime, String, Unicode, Date
+from sqlalchemy.dialects import postgresql
+from geoalchemy.geometry import GeometryDDL, GeometryColumn, MultiPoint
 from skylines.lib.igc import read_igc_headers
 from skylines.model.base import DeclarativeBase
 from skylines.model.session import DBSession
@@ -31,6 +33,9 @@ class IGCFile(DeclarativeBase):
     model = Column(Unicode(64))
 
     date_utc = Column(Date, nullable=False)
+
+    timestamps = Column(postgresql.ARRAY(DateTime))
+    locations = GeometryColumn(MultiPoint)
 
     def __repr__(self):
         return ('<IGCFile: id=%d filename=\'%s\'>' % (self.id, self.filename)).encode('utf-8')
@@ -157,3 +162,5 @@ class IGCFile(DeclarativeBase):
 
         # nothing found
         return None
+
+GeometryDDL(IGCFile.__table__)
