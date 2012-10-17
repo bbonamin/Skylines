@@ -16,6 +16,19 @@ def compile(expr, compiler, **kw):
     return '(' + compiler.process(expr.base) + ').' + expr.field
 
 
+class extract_array_item(ColumnElement):
+    def __init__(self, array, index):
+        self.array = array
+        self.index = index
+        # throws an error unless declared...
+        self.type = None
+
+
+@compiles(extract_array_item)
+def compile(expr, compiler, **kw):
+    return compiler.process(expr.array) + '[' + str(expr.index) + ']'
+
+
 class cast(ColumnElement):
     def __init__(self, base, field):
         self.base = base
