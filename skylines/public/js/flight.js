@@ -175,7 +175,9 @@ function initRedrawLayer(layer) {
  * Note: _lonlat, _levels, _time, _enl, and _height MUST have the same number of elements when decoded.
  */
 
-function addFlight(sfid, _lonlat, _levels, _num_levels, _time, _height, _enl, zoom_levels, _contests, _additional) {
+function addFlight(sfid, _lonlat, _levels, _num_levels, _time, _height,
+                   _enl, zoom_levels, _contests, _elevations_t, _elevations_h,
+                   _additional) {
   var height = OpenLayers.Util.decodeGoogle(_height);
   var time = OpenLayers.Util.decodeGoogle(_time);
   var enl = OpenLayers.Util.decodeGoogle(_enl);
@@ -228,12 +230,24 @@ function addFlight(sfid, _lonlat, _levels, _num_levels, _time, _height, _enl, zo
       flot_enl.push([timestamp, enl[i]]);
   }
 
+  if (_elevations_t !== undefined && _elevations_h !== undefined) {
+    var elev_t = OpenLayers.Util.decodeGoogle(_elevations_t);
+    var elev_h = OpenLayers.Util.decodeGoogle(_elevations_h);
+
+    var flot_elev = [];
+    for (var i = 0; i < elev_t.length; i++) {
+        var timestamp = elev_t[i] * 1000;
+        flot_elev.push([timestamp, elev_h[i]]);
+    }
+  }
+
   var table_row = $(
     "<tr>" +
     "<td><span class=\"badge\" style=\"background: " + color + ";\">" +
       (_additional && _additional['competition_id']?_additional['competition_id']:"") +
     "</span></td>" +
     "<td>--:--:--</td>" +
+    "<td>--</td>" +
     "<td>--</td>" +
     "<td>--</td>" +
     "<td>--</td>" +
@@ -268,6 +282,8 @@ function addFlight(sfid, _lonlat, _levels, _num_levels, _time, _height, _enl, zo
     sfid: sfid,
     last_update: time[time.length - 1],
     contests: contests,
+    elev_t: elev_t,
+    elev_h: elev_h,
     table_row: table_row,
     flot_h: flot_h,
     flot_enl: flot_enl,
@@ -295,7 +311,8 @@ function addFlightFromJSON(url) {
 
       addFlight(data.sfid, data.encoded.points, data.encoded.levels,
                 data.num_levels, data.barogram_t, data.barogram_h,
-                data.enl, data.zoom_levels, data.contests, data.additional);
+                data.enl, data.zoom_levels, data.contests,
+                data.elevations_t, data.elevations_h, data.additional);
 
       initRedrawLayer(map.getLayersByName("Flight")[0]);
     }
@@ -444,6 +461,17 @@ function updateFlotData() {
   var highlighted = flightWithSFID(highlighted_flight_sfid);
 
   var data = [];
+
+  if (highlighted && highlighted.flot_elev !== undefined)
+    data.push({
+      data: highlighted.flot_elev,
+      color: "rgb(235, 155, 98)",
+      lines: {
+        lineWidth: 0,
+        fill: 0.8
+      }
+    });
+
   for (var id = 0; id < flights.length; id++) {
     var flight = flights[id];
 
@@ -451,6 +479,16 @@ function updateFlotData() {
     if (highlighted && flight.sfid == highlighted.sfid)
       continue;
 
+    if (flights.length == 1 && flight.flot_elev !== undefined)
+        data.push({
+            data: flight.flot_elev,
+            color: "rgb(235, 155, 98)",
+            lines: {
+                lineWidth: 0,
+                fill: 0.8
+            }
+        });
+    
     var color = flight.color;
     if (highlighted)
       // Fade out line color if another flight is highlighted
@@ -654,6 +692,15 @@ function getFixData(id, time) {
   if (dt_total != 0)
     fix_data["vario"] = (h_next - h_prev) / dt_total;
 
+  if (flight.elev_t !== undefined && flight.elev_h !== undefined) {
+    var elev_index = getNextSmallerIndex(flight.elev_t, time);
+    if (elev_index >= 0 && elev_index < flight.elev_t.length) {
+      fix_data["alt-gnd"] = fix_data["alt-msl"] - flight.elev_h[elev_index];
+      if (fix_data["alt-gnd"] < 0)
+        fix_data["alt-gnd"] = 0;
+    }
+  }
+
   return fix_data;
 }
 
@@ -689,10 +736,18 @@ function updateFixDataTableRow(id, fix_data) {
       $(cell).html(html);
       break;
     case 2:
-      var html = format_altitude(fix_data["alt-msl"]);
+      var html = format_altitude(fix_data["alt-msl"]) + " <small>MSL</small>";
       $(cell).html(html);
       break;
     case 3:
+      if (fix_data["alt-gnd"] !== undefined) {
+        var html = format_altitude(fix_data["alt-gnd"]) + " <small>GND</small>";
+        $(cell).html(html);
+      } else {
+        $(cell).html("--");
+      }
+      break;
+    case 4:
       if (fix_data["vario"] !== undefined) {
         var html = format_lift(fix_data["vario"]);
         if (fix_data["vario"] >= 0)
@@ -703,7 +758,7 @@ function updateFixDataTableRow(id, fix_data) {
         $(cell).html("--");
       }
       break;
-    case 4:
+    case 5:
       if (fix_data["speed"] !== undefined) {
         var html = format_speed(fix_data["speed"]);
         $(cell).html(html);

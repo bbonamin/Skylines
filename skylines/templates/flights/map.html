@@ -48,6 +48,8 @@ page = 'flights'
         ${h.json.dumps(trace.enl)},
         ${h.json.dumps(trace.zoom_levels)},
         ${h.json.dumps(trace.contests)},
+        ${h.json.dumps(trace.elevations_t)},
+        ${h.json.dumps(trace.elevations_h)},
         { registration: ${h.json.dumps(flight.registration)},
           competition_id: ${h.json.dumps(flight.competition_id)} }
       );
@@ -64,6 +66,8 @@ page = 'flights'
             ${h.json.dumps(trace.enl)},
             ${h.json.dumps(trace.zoom_levels)},
             ${h.json.dumps(trace.contests)},
+            ${h.json.dumps(trace.elevations_t)},
+            ${h.json.dumps(trace.elevations_h)},
             { registration: ${h.json.dumps(flight.registration)},
               competition_id: ${h.json.dumps(flight.competition_id)} }
           );
